@@ -20,6 +20,72 @@ When this skill is invoked, perform a comprehensive store readiness audit for a 
 
 ---
 
+## PHASE 0B — Permission Usage Audit
+
+For every entry in `permissions` (and `optional_permissions`) in `manifest.json`, verify that the corresponding Chrome/browser API is actually called somewhere in the extension's JS source files. Declared but unused permissions are a common rejection reason ("Purple Potassium" / "request only the narrowest permissions necessary").
+
+### Permission → API mapping
+
+Scan all `.js` files in the extension directory for each permission. Use the table below to know what to search for:
+
+| Permission | Must find in source | Notes |
+|---|---|---|
+| `alarms` | `chrome.alarms` | |
+| `bookmarks` | `chrome.bookmarks` | |
+| `browsingData` | `chrome.browsingData` | |
+| `clipboardRead` | `document.execCommand('paste')` or Clipboard API | |
+| `clipboardWrite` | `document.execCommand('copy')` or Clipboard API | |
+| `contentSettings` | `chrome.contentSettings` | |
+| `contextMenus` | `chrome.contextMenus` | |
+| `cookies` | `chrome.cookies` | |
+| `debugger` | `chrome.debugger` | |
+| `declarativeContent` | `chrome.declarativeContent` | |
+| `declarativeNetRequest` | `chrome.declarativeNetRequest` | |
+| `desktopCapture` | `chrome.desktopCapture` | |
+| `downloads` | `chrome.downloads` | |
+| `geolocation` | `navigator.geolocation` | |
+| `history` | `chrome.history` | |
+| `identity` | `chrome.identity` | |
+| `idle` | `chrome.idle` | |
+| `management` | `chrome.management` | Commonly flagged — check carefully |
+| `nativeMessaging` | `chrome.runtime.connectNative` or `sendNativeMessage` | |
+| `notifications` | `chrome.notifications` | |
+| `pageCapture` | `chrome.pageCapture` | |
+| `power` | `chrome.power` | |
+| `proxy` | `chrome.proxy` | |
+| `scripting` | `chrome.scripting` | |
+| `search` | `chrome.search` | |
+| `sessions` | `chrome.sessions` | |
+| `storage` | `chrome.storage` | |
+| `system.cpu` / `system.memory` / `system.storage` | `chrome.system` | |
+| `tabGroups` | `chrome.tabGroups` | |
+| `tabs` | `chrome.tabs` | |
+| `topSites` | `chrome.topSites` | |
+| `tts` | `chrome.tts` | |
+| `webNavigation` | `chrome.webNavigation` | |
+| `webRequest` | `chrome.webRequest` | |
+
+### Steps
+
+1. For each permission in the manifest, grep all `.js` files for the corresponding API string from the table above.
+2. If a permission has **zero matches** in any source file: flag it as **UNUSED — must remove before submission**.
+3. Also check `optional_permissions`: if they are requested but the code never calls `chrome.permissions.request()` with them, flag them too.
+4. List all permissions with their status:
+   - ✓ Used — [found in: filename.js]
+   - ✗ **UNUSED** — not found in any source file → remove from manifest
+
+**Example finding format:**
+```
+management   ✗ UNUSED — chrome.management not found in any .js file → REMOVE
+storage      ✓ Used — background.js, popup.js
+webNavigation ✓ Used — background.js
+alarms       ✓ Used — background.js
+```
+
+> **Why this matters:** Chrome, Edge, and Firefox all reject extensions for requesting permissions that aren't demonstrably used. This is one of the most common rejection causes and easy to prevent with a simple grep.
+
+---
+
 ## PHASE 1 — Icon Audit
 
 Check for icon files at every required dimension for each target store. Read the `icons` paths declared in manifest.json. For each file found, check it exists on disk.
@@ -235,7 +301,7 @@ Work through this checklist for each target store and flag any items that are at
 - [ ] No remote code execution (no eval, no external scripts loaded at runtime)
 - [ ] No crypto mining code
 - [ ] Single clear purpose (no unrelated feature bundles)
-- [ ] Permissions list is minimal — remove any unused permissions
+- [ ] Permissions list is minimal — see Phase 0B for per-permission usage audit (unused permissions → rejection)
 - [ ] Description does NOT keyword-stuff (no repeated keywords)
 - [ ] Extension name does NOT include "Chrome" or trademarked browser names
 - [ ] All screenshots are 1280×800 or 640×400 exactly
